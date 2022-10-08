@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Chat with file sharing</title>
+    <link rel="stylesheet" href="./styles/style.css" />
+    <script src="./scripts/jquery.js"></script>
+    <script src="./scripts/socket.io.js"></script>
+    <script src="./scripts/socket.io-file-client.js"></script>
+    <script>
+      $(document).ready(() => {
+        $(".closebtn").click(() => {
+          $("#side-nav").animate({ width: "0px" }, 300);
+        });
+        $(".icon").click(() => {
+          $("#side-nav").animate({ width: "250px" }, 300);
+        });
+        /*
+         * Socket
+         */
+        $("#displayname").hide();
+        $("#nameinput").hide();
+        $("#rooms").hide();
+        $("#messages").hide();
+        var socket = io.connect("http://localhost:2020");
+        socket.on("connect", () => {
+          console.log("connected");
+          $("#nameinput").show();
+        });
+        socket.on("init", (data) => {
+          $("#nameinput").hide();
+          $("#uname").html(data.user);
+          $("#displayname").show();
+          //console.log(data)
+          $("#gnames").empty();
+          data.rooms.forEach((v) => {
+            $("#gnames").append(`<option value='${v}'>${v}</option>`);
+          });
+          $("#gnames").append(
+            `<option value="" selected>Select group</option>`
+          );
+          $("#rooms").show();
+        });
+        socket.on("joinSuccess", (m) => {
+          $("#messages").show();
+          $("#nameinput").hide();
+        });
+        socket.on("leaveSuccess", (m) => {
+          $("#users").empty();
+          $("#conversation").empty();
+        });
+        socket.on("userlist", (users) => {
+          var uname = $("#uname").html();
+          $("#users").empty();
+          users.forEach((v, i) => {
+            if (v == uname)
+              $("#users").append(`<li class="l-group-i active">${v}</li>`);
+            else $("#users").append(`<li class="l-group-i">${v}</li>`);
+          });
+        });
+        socket.on('message', data=>{
+          var uname = $("#uname").html();
+          if(data.from == uname){
+            $('#conversation').append(`<li class="l-group-i active">You: ${data.msg}</li>`);
+          }
+          else{
+            $('#conversation').append(`<li class="l-group-i">${data.from}: ${data.msg}</li>`);
+          }
+        });
+        socket.on('uploaded', data=>{
+          var uname = $("#uname").html();
+          if(data.from != uname){
+         
+            $('#conversation').append(`<li class="l-group-i">${data.from}: ${data.msg}</li>`);
+          }
+        });
+        var uploader = new SocketIOFileClient(socket);
+        var form = document.getElementById("form");
+        uploader.on("start", function (fileInfo) {
+          console.log("Start uploading", fileInfo);
+        });
+        uploader.on("stream", function (fileInfo) {
+          console.log("Streaming... sent " + fileInfo.sent + " bytes.");
+        });
+        uploader.on("complete", function (fileInfo) {
+          console.log("Upload Complete", fileInfo);
+          $('#conversation').append(`<li class="l-group-i active">You: You uploaded: ${fileInfo.originalFileName}</li>`);
+        });
+        uploader.on("error", function (err) {
+          console.log("Error!", err);
+        });
+        uploader.on("abort", function (fileInfo) {
+          console.log("Aborted: ", fileInfo);
+        });
+        $("#connect").click(() => {
+          if ($("#dname").val() != "") {
+            socket.emit("addme", $("#dname").val());
+          }
+        });
+
+        $("#join").click(() => {
+          if ($("#gnames").val() != "") socket.emit("join", $("#gnames").val());
+        });
+        $("#send").click(()=>{
+           if($("#msg").val() != ""){
+             socket.emit('send', $("#msg").val());
+             $("#msg").val('');
+           }
+        });
+        $("#upload").click(() => {
+          $("#file").trigger("click");
+        });
+        $("#file").change(() => {
+          var fileEl = document.getElementById("file");
+          var uploadIds = uploader.upload(fileEl);
+        });
+      });
+    </script>
+  </head>
+  <body>
+   
+      <div >
+        <h1 class="title">Stay Connected</h1>
+	</div>
+ 
+    <nav class="navbar" id="topbar">
+      <ul class="menu">
+      
+        <li class="menu-item">
+          <a href="./index.html" class="nav-link">Home</a>
+        </li>
+      
+        <li class="menu-item">
+          <a href="./chat.html" class="nav-link">Chat Box</a>
+        </li>
+	   <li class="menu-item">
+          <a href="#" class="nav-link">Settings</a>
+        </li>
+         <li class="menu-item">
+          <a href="javascript:closeWindow()" class="nav-link">Notification</a>
+        </li>
+      </ul>
+    </nav>
+  
+
+    <div class="container">
+      <div class="row" id="displayname">
+        <div class="col-1">Display name:</div>
+        <div class="col-3" id="uname">Shaon</div>
+      </div>
+      <div class="row" id="nameinput">
+        <div class="col-2">
+          <div class="input-add-on">
+            <input
+              type="text"
+              class="input-add-on-field"
+              id="dname"
+              placeholder="User name"
+            />
+            <button class="input-add-on-item" id="connect">Connect</button>
+          </div>
+        </div>
+        <div class="col-2">&nbsp;</div>
+      </div>
+      <div class="row" id="rooms">
+        <div class="col-2">
+          <div class="input-add-on">
+            <select type="text" class="input-add-on-field" id="gnames">
+              <option value="" selected>Select group</option>
+            </select>
+            <button class="input-add-on-item" id="join">Join</button>
+          </div>
+        </div>
+        <div class="col-2">&nbsp;</div>
+      </div>
+
+      <div id="messages">
+        <div class="row">
+          <div class="col-1">
+            <h3 class="sub-head" style="color:blue;width:400px;">Users</h3>
+            <ul id="users" class="l-group"></ul>
+          </div>
+          <div class="col-3" >
+            <div class="input-add-on" >
+              <input
+                type="text"
+                class="input-add-on-field"
+                id="msg"
+                placeholder="Enter Message"
+              />
+
+              <button class="input-add-on-item" id="send">Send</button>
+              <button class="input-add-on-item" id="upload" style="background-color:lightgreen"">
+                <i class="fa fa-file"></i>
+              </button>
+            </div>
+            <h3 class="sub-head" style="width: calc(100% - 2.5rem);color:blue">
+              Conversation
+            </h3>
+            <ul class="l-group" id="conversation">
+             
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+     <div >
+        <p class="copyright">&#169 Md.Shaon Khalifa</p>
+	</div>
+ 
+    <a href="./"
+    <form id="form" style="display: none">
+      <input type="file" id="file" />
+    </form>
+
+  </body>
+</html>
